@@ -20,21 +20,21 @@ class Board {
      * The weights are chosen as the chess weights to make calculations easier
      */
     int8_t** board;
-    uint64_t errorCatcher;
+    uint64_t errorCatcher{0};
     int piecesLeft;
 
-    uint64_t whitePawn;
-    uint64_t whiteKnight;
-    uint64_t whiteBishop;
-    uint64_t whiteRook;
-    uint64_t whiteQueen;
-    uint64_t whiteKing;
-    uint64_t blackPawn;
-    uint64_t blackKnight;
-    uint64_t blackBishop;
-    uint64_t blackRook;
-    uint64_t blackQueen;
-    uint64_t blackKing;
+    uint64_t whitePawn{0};
+    uint64_t whiteKnight{0};
+    uint64_t whiteBishop{0};
+    uint64_t whiteRook{0};
+    uint64_t whiteQueen{0};
+    uint64_t whiteKing{0};
+    uint64_t blackPawn{0};
+    uint64_t blackKnight{0};
+    uint64_t blackBishop{0};
+    uint64_t blackRook{0};
+    uint64_t blackQueen{0};
+    uint64_t blackKing{0};
 
     uint64_t currentMove;
     uint64_t lastPawnMoveTime;
@@ -44,9 +44,11 @@ class Board {
     bool blackCastles; // used for en Passant detection (was either piece moved)
 
     Board();
+    Board(const Board& rhs);
+    Board& operator=(const Board& rhs);
     vector<pair<int8_t,int8_t>> legalMoves(int8_t x, int8_t y);
-    void fillBishopMoves(vector<pair<int8_t,int8_t>>& result, int8_t x, int8_t y, bool color);
-    void fillRookMoves(vector<pair<int8_t,int8_t>>& result, int8_t x, int8_t y, bool color);
+    void fillBishopMoves(uint64_t& result, int8_t x, int8_t y, bool color);
+    void fillRookMoves(uint64_t& result, int8_t x, int8_t y, bool color);
     int isGuarded(int8_t x, int8_t y, bool color);
     bool doSteps(int8_t x, int8_t y, function<pair<int8_t,int8_t>(int8_t, int8_t)> nextStep, function<bool(int8_t)> evaluate, bool color);
     pair<int8_t, int8_t> findNext(int8_t x, int8_t y, function<pair<int8_t,int8_t>(int8_t, int8_t)> nextStep, function<bool(int8_t)> evaluate, bool color);
@@ -58,12 +60,15 @@ class Board {
     vector<uint32_t> getAllLegalMoves(bool color);
     bool inCheck(bool color);
     vector<pair<int8_t,int8_t>> getAttackingPieces(int8_t x, int8_t y, bool color, bool block);
+    pair<int8_t, int8_t> pinnedPiece(bool color, int8_t x, int8_t y);
 
     /**
      * This Function evaluates the current position
-     * @return returns a positive number if white is winning, a negative if black and 0 when there is a tie
+     * @return returns a positive number if white is winning, a negative if black and 0 when there is a draw
      */
     int evaluatePosition();
+
+    pair<uint32_t, int> bestMove(int depth, bool color);
 };
 
 

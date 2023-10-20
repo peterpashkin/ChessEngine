@@ -82,7 +82,7 @@ int8_t **Helper::loadFile() {
 }
 
 pair<int8_t, int8_t> Helper::getCoordinates(uint64_t bitmask) {
-    int tmp = __builtin_clzl(bitmask);
+    int tmp = __builtin_clzll(bitmask);
     return make_pair(tmp/8, tmp%8);
 }
 
@@ -107,7 +107,10 @@ void Helper::moveBitFromTo(uint64_t &bitmask, int8_t x1, int8_t y1, int8_t x2, i
 
 void Helper::printBoard(int8_t **board) {
 
+    cout << "  0 1 2 3 4 5 6 7" << endl;
+
     for(int i=0; i<8; i++) {
+        cout << i << " ";
         for(int u=0; u<8; u++) {
             auto current = board[i][u];
             bool colorVal = color(current);
@@ -143,7 +146,7 @@ void Helper::printBoard(int8_t **board) {
                 toPrint -= 32;
             }
 
-            cout << toPrint;
+            cout << toPrint << " ";
         }
         cout << endl;
     }
@@ -231,6 +234,43 @@ uint64_t Helper::getPotentialRookPattern(int8_t x, int8_t y, int8_t iteration) {
 uint64_t Helper::getPotentialQueenPattern(int8_t x, int8_t y, int8_t iteration) {
     uint64_t queenPattern = getPotentialBishopPattern(x,y,iteration) | getPotentialRookPattern(x,y,iteration);
     return queenPattern;
+}
+
+vector<pair<int8_t, int8_t>> Helper::convertBitMaskToPoints(uint64_t bitmask) {
+    vector<pair<int8_t, int8_t>> result;
+    while(bitmask) {
+        auto tmp = getCoordinates(bitmask);
+        bitmask &= ~(coordinatesToBitmask(tmp.first, tmp.second));
+        result.push_back(tmp);
+    }
+
+    return result;
+}
+
+/**
+ * This method will return a bitmask of all squares between the attacker and the king
+ * @param attackerX
+ * @param attackerY
+ * @param kingX
+ * @param kingY
+ * @return bitmask of possible moves for a piece pinned by the attacker
+ */
+uint64_t Helper::possiblePinnedMoves(int8_t attackerX, int8_t attackerY, int8_t kingX, int8_t kingY) {
+    // we will start from the attacker and do normalized steps till we get to the king
+
+    if(attackerX == -1) return -1;
+
+
+    int8_t normalizedX = normalize(kingX - attackerX);
+    int8_t normalizedY = normalize(kingY - attackerY);
+    uint64_t result = 0;
+    while(attackerX != kingX && attackerY != kingY) {
+        result |= coordinatesToBitmask(attackerX, attackerY);
+        attackerX += normalizedX;
+        attackerY += normalizedY;
+    }
+
+    return result;
 }
 
 
