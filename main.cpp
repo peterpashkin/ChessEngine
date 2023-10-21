@@ -24,12 +24,13 @@ int main() {
 
     Helper::printBoard(b->board);
     cout << endl;
-    // this will be the loop that takes the moves as input and processes
-    // the information
+
+
+
 
     bool currentColor = true;
 
-    int last = 32;
+
 
 
     while(true) {
@@ -53,7 +54,7 @@ int main() {
         int index = dist6(rng);
 
         uint32_t performingMove = moves[index];*/
-        if(currentColor) {
+        if(true) {
             auto pair = b->bestMove(5, currentColor);
             uint32_t performingMove = pair.first;
             int8_t x1 = performingMove >> 24;

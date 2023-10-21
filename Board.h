@@ -11,6 +11,8 @@
 using namespace std;
 
 
+
+
 class Board {
     public:
     /**
@@ -40,6 +42,24 @@ class Board {
     uint64_t lastPawnMoveTime;
     pair<int8_t, int8_t> lastPawnMove; // used for en passant detection
 
+
+
+    struct move {
+        pair<int8_t,int8_t> from;
+        pair<int8_t,int8_t> to;
+        int8_t beatenPiece;
+        bool castle;
+        bool enPassant;
+        bool promotion;
+        bool preWhiteCastle;
+        bool preBlackCastle;
+    };
+    stack<move> lastMoves;
+    // it kinda makes sense to use a stack
+
+
+
+
     bool whiteCastles;
     bool blackCastles; // used for en Passant detection (was either piece moved)
 
@@ -61,6 +81,7 @@ class Board {
     bool inCheck(bool color);
     vector<pair<int8_t,int8_t>> getAttackingPieces(int8_t x, int8_t y, bool color, bool block);
     pair<int8_t, int8_t> pinnedPiece(bool color, int8_t x, int8_t y);
+    void undoLastMove();
 
     /**
      * This Function evaluates the current position

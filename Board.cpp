@@ -483,11 +483,13 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // the only sideways pawn motion without a piece on the moving square
 
 
-
     int8_t piece = board[x1][y1];
     int8_t beatenPiece = board[x2][y2];
     board[x2][y2] = board[x1][y1];
     board[x1][y1] = 0;
+
+
+    move lastMove = {{x1,y1}, {x2,y2}, beatenPiece, false, false, false, whiteCastles, blackCastles};
 
 
     // this is the en passant implementation
@@ -497,6 +499,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
         board[x1][y2] = 0;
         cout << currentMove << " " << lastPawnMoveTime << " " << printPair(lastPawnMove) << endl;
         cout << "EN PASSANT BABY " << endl << endl << endl;
+        lastMove.enPassant = true;
     }
 
     // this is the castles implementation
@@ -507,6 +510,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
         Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), x1, 7, x1, 5); // changes bitmask
         board[x1][5] = rookPiece; // changes board
         board[x1][7] = 0;
+        lastMove.castle = true;
     }
 
 
@@ -541,6 +545,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
 
         whitePawn &= (~whitePawns);
         whiteQueen |= whitePawns;
+        lastMove.promotion = true;
     }
 
     if(blackPawns) {
@@ -549,6 +554,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
 
         blackPawn &= (~blackPawns);
         blackQueen |= blackPawns;
+        lastMove.promotion = true;
     }
 
 
@@ -559,6 +565,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     }
 
     currentMove++;
+    lastMoves.push(lastMove);
 }
 
 uint64_t &Board::getBitmaskOfPiece(int8_t piece) {
@@ -804,9 +811,8 @@ pair<uint32_t, int> Board::bestMove(int depth, bool color) {
         int8_t y2 = performingMove & 0xff;
 
 
-        Board copyBoard = *this;
-        copyBoard.executeMove(x1, y1, x2, y2);
-        auto thisRes = copyBoard.bestMove(depth-1, !color);
+        executeMove(x1, y1, x2, y2);
+        auto thisRes = bestMove(depth-1, !color);
 
         if(color && thisRes.second >= result.second) {
             result = make_pair(performingMove, thisRes.second);
@@ -815,6 +821,7 @@ pair<uint32_t, int> Board::bestMove(int depth, bool color) {
         if(!color && thisRes.second <= result.second) {
             result = make_pair(performingMove, thisRes.second);
         }
+        undoLastMove();
 
     }
 
@@ -897,5 +904,61 @@ Board &Board::operator=(const Board &rhs) {
     blackCastles = rhs.blackCastles;
 
     return *this;
+}
+
+void Board::undoLastMove() {
+    auto lastMove = lastMoves.top();
+    lastMoves.pop();
+
+    whiteCastles = lastMove.preWhiteCastle;
+    blackCastles = lastMove.preBlackCastle;
+    currentMove--;
+
+    if(lastMove.castle) {
+        // castle moves are represented by either 7 4 -> 7 6 (white)
+        // or 0 4 -> 0 6 (black)
+        // we are just going to adjust the rook, the king will be adjusted for us
+
+        int currentX = lastMove.to.first;
+        board[currentX][7] = board[currentX][5];
+        board[currentX][5] = 0;
+        Helper::moveBitFromTo(getBitmaskOfPiece(board[currentX][7]), currentX, 5, currentX, 7);
+
+        (currentX ? whiteCastles:blackCastles) = true;
+
+    } else if(lastMove.enPassant) {
+        // if the last move was en Passant, we know we beat the pawn that now stands behind us
+        // the pawn that beat it will be reset either way
+        // we can exactly determine the beaten pawn was on: x is same as fromX and y is toY
+        int8_t beatenPawn = -board[lastMove.to.first][lastMove.to.second];
+        board[lastMove.from.first][lastMove.to.second] = beatenPawn;
+        getBitmaskOfPiece(beatenPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.to.second);
+        piecesLeft++;
+    }
+
+    if(lastMove.promotion) {
+        // if we promoted, we cannot reset the pawn normally, so we need to do a complete distinct case analysis
+        // we basically just put the normalized piece on the square it came from
+        int8_t pastPawn = normalize(board[lastMove.to.first][lastMove.to.second]);
+        board[lastMove.from.first][lastMove.from.second] = pastPawn;
+        board[lastMove.to.first][lastMove.to.second] = lastMove.beatenPiece;
+        getBitmaskOfPiece(pastPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.from.second);
+        getBitmaskOfPiece(9*pastPawn) &= (~Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second));
+
+        if(lastMove.beatenPiece) piecesLeft++;
+        getBitmaskOfPiece(lastMove.beatenPiece) |= Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second);
+
+        return;
+    }
+
+    if(lastMove.beatenPiece) piecesLeft++;
+
+    int8_t movedPiece = board[lastMove.to.first][lastMove.to.second];
+    board[lastMove.from.first][lastMove.from.second] = movedPiece;
+    board[lastMove.to.first][lastMove.to.second] = lastMove.beatenPiece;
+
+    Helper::moveBitFromTo(getBitmaskOfPiece(movedPiece), lastMove.to.first, lastMove.to.second, lastMove.from.first, lastMove.from.second);
+    getBitmaskOfPiece(lastMove.beatenPiece) |= Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second);
+
 }
 
