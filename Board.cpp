@@ -81,7 +81,8 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
     uint64_t pinnedMoves = Helper::possiblePinnedMoves(pinningPiece.first, pinningPiece.second, kingCoordinates.first, kingCoordinates.second);
 
 
-    if(inCheck(color) && piece!=63) {
+    //if(inCheck(color) && piece!=63) {
+    if(false) {
 
         // so this does the following
         // 1. get king coordinates of my color
@@ -497,9 +498,8 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
         Helper::removeBitFromCoordinates(getBitmaskOfPiece(board[x1][y2]), x1, y2);
         piecesLeft--;
         board[x1][y2] = 0;
-        cout << currentMove << " " << lastPawnMoveTime << " " << printPair(lastPawnMove) << endl;
-        cout << "EN PASSANT BABY " << endl << endl << endl;
         lastMove.enPassant = true;
+        cout << "en passant" << endl;
     }
 
     // this is the castles implementation
@@ -601,19 +601,94 @@ bool &Board::getEnPassant(bool color) {
 }
 
 vector<uint32_t> Board::getAllLegalMoves(bool color) {
-    //TODO for now i will just iterate over the board but bitboards might be better here
-    // this is very unclean, i will just do pairs of pairs or 32 bit ints because
 
     vector<uint32_t> result;
+
+    if(inCheck(color)) {
+        // so this does the following
+        // 1. get king coordinates of my color
+        // 2. get everyAttacker on the king
+        // 3. if there is more than one everyAttacker, we have to do a king move, there is no other way, we return
+        // 4. if not we know there is exactly one everyAttacker
+        // 5. we will do the following for every square from everyAttacker to king
+        //  check which pieces could go onto this square, if they match with the piece we are at right now, we add it
+
+
+
+        auto kingCoordinates = Helper::getCoordinates(color ? whiteKing:blackKing);
+        auto everyAttacker = getAttackingPieces(kingCoordinates.first, kingCoordinates.second, color, false);
+
+
+        auto x = legalMoves(kingCoordinates.first, kingCoordinates.second);
+
+        if(everyAttacker.size() > 1) {
+            for(auto j: x) result.push_back(Helper::convertMoveToBitmask(kingCoordinates.first, kingCoordinates.second, j.first, j.second));
+            return result;
+        }
+
+        for(auto kingMoves: x) {
+            result.push_back(Helper::convertMoveToBitmask(kingCoordinates.first, kingCoordinates.second, kingMoves.first, kingMoves.second));
+        }
+
+
+        auto attacker = everyAttacker[0];
+
+        int8_t attackingPieceX = attacker.first;
+        int8_t attackingPieceY = attacker.second;
+
+
+        int8_t directionX = kingCoordinates.first-attackingPieceX; // so positive is everyAttacker up
+        int8_t directionY = kingCoordinates.second-attackingPieceY; // so positive is everyAttacker left
+
+        int8_t normalizedStepX = normalize(directionX);
+        int8_t normalizedStepY = normalize(directionY);
+
+        if(abs(board[attackingPieceX][attackingPieceY]) == 3) {
+            // knight implementation
+            // the attack can't be blocked, only taking the knight is an option
+            auto potentialDefenders = getAttackingPieces(attackingPieceX, attackingPieceY, !color, false);
+            for (auto check: potentialDefenders) {
+                auto pinningPiece = pinnedPiece(color, check.first, check.second);
+                uint64_t pinnedMoves = Helper::possiblePinnedMoves(pinningPiece.first, pinningPiece.second, kingCoordinates.first, kingCoordinates.second);
+                if(pinnedMoves & Helper::coordinatesToBitmask(attackingPieceX, attackingPieceY)) result.push_back(Helper::convertMoveToBitmask(check.first, check.second, attackingPieceX, attackingPieceY));
+            }
+        } else {
+            // first iteration will be done manually do distinguish between pawns blocking and taking
+            auto potentialDefenders = getAttackingPieces(attackingPieceX, attackingPieceY, !color, false);
+            for (auto check: potentialDefenders) {
+                auto pinningPiece = pinnedPiece(color, check.first, check.second);
+                uint64_t pinnedMoves = Helper::possiblePinnedMoves(pinningPiece.first, pinningPiece.second, kingCoordinates.first, kingCoordinates.second);
+                if(pinnedMoves & Helper::coordinatesToBitmask(attackingPieceX, attackingPieceY)) result.push_back(Helper::convertMoveToBitmask(check.first, check.second, attackingPieceX, attackingPieceY));
+            }
+
+            attackingPieceX += normalizedStepX;
+            attackingPieceY += normalizedStepY;
+
+            while ((attackingPieceX != kingCoordinates.first) || (attackingPieceY != kingCoordinates.second)) {
+                potentialDefenders = getAttackingPieces(attackingPieceX, attackingPieceY, !color, true);
+                for (auto check: potentialDefenders) {
+                    auto pinningPiece = pinnedPiece(color, check.first, check.second);
+                    uint64_t pinnedMoves = Helper::possiblePinnedMoves(pinningPiece.first, pinningPiece.second, kingCoordinates.first, kingCoordinates.second);
+                    if(pinnedMoves & Helper::coordinatesToBitmask(attackingPieceX, attackingPieceY)) result.push_back(Helper::convertMoveToBitmask(check.first, check.second, attackingPieceX, attackingPieceY));
+                }
+
+                attackingPieceX += normalizedStepX;
+                attackingPieceY += normalizedStepY;
+            }
+        }
+
+
+        return result;
+    }
+
+
 
     for(int i=0; i<8; i++) {
         for(int u=0; u<8; u++) {
             if(board[i][u] && color(board[i][u]) == color) {
                 auto tmp = legalMoves(i, u);
                 for(auto p: tmp) {
-                    uint32_t toAdd = (i<<24) | (u << 16);
-                    toAdd |= (p.first << 8);
-                    toAdd |= p.second;
+                    uint32_t toAdd = (i<<24) | (u << 16) | (p.first << 8) | p.second;
                     result.push_back(toAdd);
                 }
             }
@@ -802,6 +877,7 @@ pair<uint32_t, int> Board::bestMove(int depth, bool color) {
         else return make_pair(0, 0); // stalemate
     }
 
+    // TODO contemplate to return instantly if there is only one move
 
 
     for(auto performingMove: tryouts) {

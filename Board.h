@@ -39,7 +39,7 @@ class Board {
     uint64_t blackKing{0};
 
     uint64_t currentMove;
-    uint64_t lastPawnMoveTime;
+    uint64_t lastPawnMoveTime; // TODO delete those two, and just orient on last move honestly
     pair<int8_t, int8_t> lastPawnMove; // used for en passant detection
 
 

@@ -273,6 +273,10 @@ uint64_t Helper::possiblePinnedMoves(int8_t attackerX, int8_t attackerY, int8_t 
     return result;
 }
 
+uint32_t Helper::convertMoveToBitmask(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
+    return (x1<<24) | (y1 << 16) | (x2 << 8) | y2;
+}
+
 
 
 
