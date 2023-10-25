@@ -15,7 +15,7 @@ uint64_t leftEliminate = 0x3f3f3f3f3f3f3f3f, rightEliminate = 0xfcfcfcfcfcfcfcfc
  * @return
  */
 int8_t **Helper::loadFile() {
-    ifstream myfile ("../chess_start.txt", ios::in);
+    ifstream myfile ("chess_start.txt", ios::in);
 
     auto** result = (int8_t**) malloc(64);
 

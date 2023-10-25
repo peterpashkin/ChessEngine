@@ -29,11 +29,11 @@ int main() {
 
 
     bool currentColor = true;
+    int counter = 0;
 
 
 
-
-    while(true) {
+    while(counter < 6) {
         // let's assume we are only given good moves
 
         // i hate this, just do random piece
@@ -54,7 +54,7 @@ int main() {
         int index = dist6(rng);
 
         uint32_t performingMove = moves[index];*/
-        if(true) {
+        if(currentColor) {
             auto pair = b->bestMove(5, currentColor);
             uint32_t performingMove = pair.first;
             int8_t x1 = performingMove >> 24;
@@ -73,7 +73,7 @@ int main() {
         currentColor = !currentColor;
         //this_thread::sleep_for(chrono::seconds(2));
         cout << endl;
-
+        //counter++;
     }
 
     Helper::printBoard(b->board);

@@ -44,6 +44,10 @@ Board::Board() {
     lastPawnMoveTime = -1;
     piecesLeft = 0;
 
+    // en passant helper
+    move placeholder = {{0,0}, {0,0}, 0, false, false, false, false, false};
+    lastMoves.push(placeholder);
+
     long long int currentBit = 1;
     for (int i = 7; i >= 0; i--) {
         for (int u = 7; u >= 0; u--) {
@@ -160,6 +164,8 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
     switch(piece) {
         case 1: {
             // this is the pawn testcase
+            move lastMove = lastMoves.top();
+            bool wasPawnMove = abs(board[lastMove.to.first][lastMove.to.second]) == 1;
             if (color) {
                 if (x == 6 && !board[x - 1][y] && !board[x - 2][y]) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-2,y);
@@ -169,11 +175,11 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-1,y);
                     //result.emplace_back(x - 1, y);
                 }
-                if (y > 0 && (board[x - 1][y - 1] < 0 || (lastPawnMoveTime == (currentMove-1) && lastPawnMove.first == x && lastPawnMove.second == (y-1)))) {
+                if (y > 0 && (board[x - 1][y - 1] < 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y-1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-1, y-1);
                     //result.emplace_back(x - 1, y - 1);
                 }
-                if (y < 7 && (board[x - 1][y + 1] < 0 || (lastPawnMoveTime == (currentMove-1) && lastPawnMove.first == x && lastPawnMove.second == (y+1)))) {
+                if (y < 7 && (board[x - 1][y + 1] < 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y+1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-1, y+1);
                     //result.emplace_back(x - 1, y + 1);
                 }
@@ -186,11 +192,11 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
                     possibleMoves |= Helper::coordinatesToBitmask(x+1, y);
                     //result.emplace_back(x + 1, y);
                 }
-                if (y > 0 && (board[x + 1][y - 1] > 0 || (lastPawnMoveTime == (currentMove-1) && lastPawnMove.first == x && lastPawnMove.second == (y-1)))) {
+                if (y > 0 && (board[x + 1][y - 1] > 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y-1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x+1, y-1);
                     //result.emplace_back(x + 1, y - 1);
                 }
-                if (y < 7 && (board[x + 1][y + 1] > 0 || (lastPawnMoveTime == (currentMove-1) && lastPawnMove.first == x && lastPawnMove.second == (y+1)))) {
+                if (y < 7 && (board[x + 1][y + 1] > 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y+1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x+1, y+1);
                     //result.emplace_back(x + 1, y + 1);
                 }
@@ -499,7 +505,6 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
         piecesLeft--;
         board[x1][y2] = 0;
         lastMove.enPassant = true;
-        cout << "en passant" << endl;
     }
 
     // this is the castles implementation
@@ -557,12 +562,6 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
         lastMove.promotion = true;
     }
 
-
-    // en passant possibility
-    if(abs(piece) == 1 && (abs(x2-x1) == 2)) { // really unclean but seems like the best way
-        lastPawnMoveTime = currentMove;
-        lastPawnMove = make_pair(x2, y2);
-    }
 
     currentMove++;
     lastMoves.push(lastMove);
