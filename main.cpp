@@ -26,9 +26,7 @@ int main() {
     cout << endl;
 
 
-
-
-    bool currentColor = true;
+    bool currentColor = false;
     int counter = 0;
 
 
@@ -54,7 +52,7 @@ int main() {
         int index = dist6(rng);
 
         uint32_t performingMove = moves[index];*/
-        if(currentColor) {
+        if(!currentColor) {
             auto pair = b->bestMove(5, currentColor);
             uint32_t performingMove = pair.first;
             int8_t x1 = performingMove >> 24;

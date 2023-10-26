@@ -27,10 +27,13 @@ int8_t **Helper::loadFile() {
     for(int i=0; i<8; i++) {
         string s;
         getline(myfile, s);
-        for(int u=0; u<8; u++) {
+        int currentColumn = 0;
+        for(int u=0; u<s.length(); u++) {
             char c = s[u];
             int8_t writing = 0;
             switch(c) {
+                case ' ':
+                    continue;
                 case 'P':
                     writing = 1;
                     break;
@@ -71,7 +74,7 @@ int8_t **Helper::loadFile() {
                     writing = 0;
                     break;
             }
-            result[i][u] = writing;
+            result[i][currentColumn++] = writing;
         }
     }
 
@@ -264,7 +267,7 @@ uint64_t Helper::possiblePinnedMoves(int8_t attackerX, int8_t attackerY, int8_t 
     int8_t normalizedX = normalize(kingX - attackerX);
     int8_t normalizedY = normalize(kingY - attackerY);
     uint64_t result = 0;
-    while(attackerX != kingX && attackerY != kingY) {
+    while(attackerX != kingX || attackerY != kingY) {
         result |= coordinatesToBitmask(attackerX, attackerY);
         attackerX += normalizedX;
         attackerY += normalizedY;

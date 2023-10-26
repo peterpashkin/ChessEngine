@@ -84,7 +84,6 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
     auto pinningPiece = pinnedPiece(color, x, y);
     uint64_t pinnedMoves = Helper::possiblePinnedMoves(pinningPiece.first, pinningPiece.second, kingCoordinates.first, kingCoordinates.second);
 
-
     //if(inCheck(color) && piece!=63) {
     if(false) {
 
