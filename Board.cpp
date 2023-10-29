@@ -4,19 +4,13 @@
 
 /* TODO
  * this list has every bug that is currently known
- * - pinned pieces are not handled
- * - (should be fixed) somehow knight can't block
- * - (should be fixed) PAWN can block mates by moving since we just check if someone attacks an empty square
- * - (fixed) staleMate
- * - (fixed) the fucking king is in the way so the game thinks the square is not guarded (just do attacking patterns as bit) rewrite is Guarded
- * + temporary fix: doSteps and findNext skip the king of it's color
- * - it's more efficient for the inCheck case to just return all defensive pieces
+
  */
 
 #define printPair(x) int(x.first) << " " << int(x.second)
 
 #include "Board.h"
-#define abs(x) (x < 0 ? -x:x)
+#define abs(x) ((x) < 0 ? -(x):x)
 #define shift(x,s) (s<0 ? x<<=-s:x>>=s)
 #define step(first, second) [](int8_t x, int8_t y) -> pair<int8_t, int8_t> {return make_pair(x+first, y+second);}
 #define movingPiece(value) [&color](int8_t piece) -> bool {return color(piece) != color && (abs(piece) == value || abs(piece) == 9);}
@@ -26,6 +20,7 @@
 
 uint64_t whitePromoted = 0xff00'0000'0000'0000;
 uint64_t blackPromoted = 0xff;
+
 
 
 Board::Board() {
@@ -64,19 +59,11 @@ Board::Board() {
 
 
 vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
-    int8_t piece = board[x][y];
-
-    bool color = (piece > 0);
-    piece = abs(piece);
+    int8_t piece = abs(board[x][y]);
+    bool color = (board[x][y] > 0);
     vector<pair<int8_t,int8_t>> result;
 
-    // TODO and with possible moves if pinned
-    uint64_t possibleMoves = 0;
-
-    // we will look for a check
-    // depending on this we might give the opportunity to capture an attacking piece
-    // or just allow kingMoves (for everything >1 check)
-    // TODO blocking pieces, probably needs some rewrite of code, check every square from king to attacking Piece
+    uint64_t possibleMoves = 0; // bitmask of squares we can move to
 
 
     // pinned pieces
@@ -84,87 +71,15 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
     auto pinningPiece = pinnedPiece(color, x, y);
     uint64_t pinnedMoves = Helper::possiblePinnedMoves(pinningPiece.first, pinningPiece.second, kingCoordinates.first, kingCoordinates.second);
 
-    //if(inCheck(color) && piece!=63) {
-    if(false) {
-
-        // so this does the following
-        // 1. get king coordinates of my color
-        // 2. get everyAttacker on the king
-        // 3. if there is more than one everyAttacker, we have to do a king move, there is no other way, we return
-        // 4. if not we know there is exactly one everyAttacker
-        // 5. we will do the following for every square from everyAttacker to king
-        //  check which pieces could go onto this square, if they match with the piece we are at right now, we add it
-        //  TODO honestly since we check for a specific piece, there is probably something more clever
-
-
-
-        auto everyAttacker = getAttackingPieces(kingCoordinates.first, kingCoordinates.second, color, false);
-
-
-        if(everyAttacker.size() > 1) {
-            return result;
-        }
-
-
-
-        auto attacker = everyAttacker[0];
-        // TODO maybe save this to avoid computation for other pieces
-        // TODO yeah pinned pieces can't defend
-
-        int8_t attackingPieceX = attacker.first;
-        int8_t attackingPieceY = attacker.second;
-
-
-        int8_t directionX = kingCoordinates.first-attackingPieceX; // so positive is everyAttacker up
-        int8_t directionY = kingCoordinates.second-attackingPieceY; // so positive is everyAttacker left
-
-        int8_t normalizedStepX = normalize(directionX);
-        int8_t normalizedStepY = normalize(directionY);
-
-        if(abs(board[attackingPieceX][attackingPieceY]) == 3) {
-            // knight implementation
-            // the attack can't be blocked, only taking the knight is an option
-            auto potentialDefenders = getAttackingPieces(attackingPieceX, attackingPieceY, !color, false);
-            for (auto check: potentialDefenders) {
-                if (check.first == x && check.second == y) {
-                    possibleMoves |= Helper::coordinatesToBitmask(attackingPieceX, attackingPieceY);
-                }
-            }
-        } else {
-            // first iteration will be done manually do distinguish between pawns blocking and taking
-            auto potentialDefenders = getAttackingPieces(attackingPieceX, attackingPieceY, !color, false);
-            for (auto check: potentialDefenders) {
-                if (check.first == x && check.second == y) {
-                    possibleMoves |= Helper::coordinatesToBitmask(attackingPieceX, attackingPieceY);
-                }
-            }
-
-            attackingPieceX += normalizedStepX;
-            attackingPieceY += normalizedStepY;
-
-            while ((attackingPieceX != kingCoordinates.first) || (attackingPieceY != kingCoordinates.second)) {
-                potentialDefenders = getAttackingPieces(attackingPieceX, attackingPieceY, !color, true);
-                for (auto check: potentialDefenders) {
-                    if (check.first == x && check.second == y) {
-                        possibleMoves |= Helper::coordinatesToBitmask(attackingPieceX, attackingPieceY);
-                    }
-                }
-
-                attackingPieceX += normalizedStepX;
-                attackingPieceY += normalizedStepY;
-            }
-        }
-
-
-        return Helper::convertBitMaskToPoints(possibleMoves & pinnedMoves);
-    }
-
 
     switch(piece) {
         case 1: {
             // this is the pawn testcase
             move lastMove = lastMoves.top();
             bool wasPawnMove = abs(board[lastMove.to.first][lastMove.to.second]) == 1;
+            bool wasStartingMove = abs(lastMove.to.first-lastMove.from.first) == 2;
+            bool enPassantPossiblity = wasPawnMove && wasStartingMove;
+
             if (color) {
                 if (x == 6 && !board[x - 1][y] && !board[x - 2][y]) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-2,y);
@@ -174,28 +89,28 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-1,y);
                     //result.emplace_back(x - 1, y);
                 }
-                if (y > 0 && (board[x - 1][y - 1] < 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y-1)))) {
+                if (y > 0 && (board[x - 1][y - 1] < 0 || (enPassantPossiblity && lastMove.to.first == x && lastMove.to.second == (y-1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-1, y-1);
                     //result.emplace_back(x - 1, y - 1);
                 }
-                if (y < 7 && (board[x - 1][y + 1] < 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y+1)))) {
+                if (y < 7 && (board[x - 1][y + 1] < 0 || (enPassantPossiblity && lastMove.to.first == x && lastMove.to.second == (y+1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x-1, y+1);
                     //result.emplace_back(x - 1, y + 1);
                 }
             } else {
                 if (x == 1 && !board[x + 1][y] && !board[x + 2][y]) {
-                    possibleMoves |= Helper::coordinatesToBitmask(x+1, y);
+                    possibleMoves |= Helper::coordinatesToBitmask(x+2, y);
                     //result.emplace_back(x + 2, y);
                 }
                 if (!board[x + 1][y]) {
                     possibleMoves |= Helper::coordinatesToBitmask(x+1, y);
                     //result.emplace_back(x + 1, y);
                 }
-                if (y > 0 && (board[x + 1][y - 1] > 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y-1)))) {
+                if (y > 0 && (board[x + 1][y - 1] > 0 || (enPassantPossiblity && lastMove.to.first == x && lastMove.to.second == (y-1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x+1, y-1);
                     //result.emplace_back(x + 1, y - 1);
                 }
-                if (y < 7 && (board[x + 1][y + 1] > 0 || (wasPawnMove && lastMove.to.first == x && lastMove.to.second == (y+1)))) {
+                if (y < 7 && (board[x + 1][y + 1] > 0 || (enPassantPossiblity && lastMove.to.first == x && lastMove.to.second == (y+1)))) {
                     possibleMoves |= Helper::coordinatesToBitmask(x+1, y+1);
                     //result.emplace_back(x + 1, y + 1);
                 }
@@ -242,8 +157,6 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
             fillRookMoves(possibleMoves, x, y, color);
             break;
         case 63: {
-            // TODO dont castle when any of the squares are guarded
-
             // those are the legal moves for the king
             // we need to do one more thing for the king,
             // that is to check wether the square we move to is guarded by any of black pieces
@@ -274,11 +187,13 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
             }
 
             // we also check for en passant
-            if(getEnPassant(color)) {
+            if(canCastle(color)) {
                 // so king and rook haven't been moved
                 // with this we can assume that the coordinates of the king are the ones from the start
                 // the only other criteria is therefore space between the two figures
-                if(!board[x][5] && !board[x][6]) {
+
+                // we check for defenders of the 2 squares the king walks by
+                if(!board[x][5] && !board[x][6] && !isGuarded(x,5,color) && !isGuarded(x,6,color)) {
                     //result.emplace_back(x, 6); // the rook logic will be implemented in the executeMove
                     possibleMoves |= Helper::coordinatesToBitmask(x, 6);
                 }
@@ -312,7 +227,7 @@ void Board::fillBishopMoves(uint64_t& possibleMoves, int8_t x, int8_t y, bool co
     tmp1 = x + 1;
     tmp2 = y - 1;
 
-    for (int8_t i = max(x, (int8_t) (8 - y)) + 1; i < 8; i++) {
+    for (int8_t i = max(x, (int8_t) (7 - y)) + 1; i < 8; i++) {
         if (!board[tmp1][tmp2]) {
             possibleMoves |= Helper::coordinatesToBitmask(tmp1, tmp2);
         } else if (color(board[tmp1][tmp2]) != color) {
@@ -329,7 +244,7 @@ void Board::fillBishopMoves(uint64_t& possibleMoves, int8_t x, int8_t y, bool co
     tmp1 = x - 1;
     tmp2 = y + 1;
 
-    for (int8_t i = max((int8_t) (8 - x), y) + 1; i < 8; i++) {
+    for (int8_t i = max((int8_t) (7 - x), y) + 1; i < 8; i++) {
         if (!board[tmp1][tmp2]) {
             possibleMoves |= Helper::coordinatesToBitmask(tmp1, tmp2);
         } else if (color(board[tmp1][tmp2]) != color) {
@@ -345,7 +260,7 @@ void Board::fillBishopMoves(uint64_t& possibleMoves, int8_t x, int8_t y, bool co
     tmp1 = x - 1;
     tmp2 = y - 1;
 
-    for (int8_t i = max(8 - x, 8 - y) + 1; i < 8; i++) {
+    for (int8_t i = max(7 - x, 7 - y) + 1; i < 8; i++) {
         if (!board[tmp1][tmp2]) {
             possibleMoves |= Helper::coordinatesToBitmask(tmp1, tmp2);
         } else if (color(board[tmp1][tmp2]) != color) {
@@ -456,17 +371,11 @@ bool Board::doSteps(int8_t x, int8_t y, function<pair<int8_t, int8_t>(int8_t, in
 }
 
 bool Board::isMated(bool color) {
-    // TODO should check for beating the rest (not really necessary i guess)
-    /* this is legacy code, might use later
-    pair<int8_t, int8_t> kingCoordinates = color ? Helper::getCoordinates(whiteKing) : Helper::getCoordinates(blackKing);
-    //cout << int(kingCoordinates.first) << " " << int(kingCoordinates.second) << endl;
-    return legalMoves(kingCoordinates.first, kingCoordinates.second).empty() && isGuarded(kingCoordinates.first, kingCoordinates.second, color);
-     */
-
     // wont use i think
-    return getAllLegalMoves(color).empty();
+    return getAllLegalMoves(color).empty() && inCheck(color);
 }
 
+// TODO implement this definetely for user input
 bool Board::parseMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // honestly not sure why i have this method, i guess for safety reasons currently
     // but i should assume the bot only chooses legal Moves
@@ -531,14 +440,13 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // so the rook based castle doesn't work <=> the square of the rook wasn't occupied by the right colored rook
     // same applies for the king
 
-    // TODO this could also be implemented with the bitboards, probably more efficient
-    // TODO also those ifs could be combined by checking who moved i guess, but look out because white could break blacks privilege
-    if((board[7][7] != 6) || (board[7][4] != 63)) {
-        whiteCastles = false;
-    }
+
     if((board[0][7] != -6) || (board[0][4] != -63)) {
         blackCastles = false;
     }
+
+    if(whiteRook & 1 || whiteKing & 0b0001) whiteCastles = false;
+    // TODO black and check white correct
 
     uint64_t whitePawns = whitePawn & whitePromoted;
     uint64_t blackPawns = blackPawn & blackPromoted;
@@ -589,12 +497,12 @@ uint64_t &Board::getBitmaskOfPiece(int8_t piece) {
             return color ? whiteKing : blackKing;
         }
         default:
-            // TODO some error message
+            // used for parsing in empty squares (0)
             return errorCatcher;
     }
 }
 
-bool &Board::getEnPassant(bool color) {
+bool &Board::canCastle(bool color) {
     return color ? whiteCastles : blackCastles;
 }
 
@@ -610,8 +518,6 @@ vector<uint32_t> Board::getAllLegalMoves(bool color) {
         // 4. if not we know there is exactly one everyAttacker
         // 5. we will do the following for every square from everyAttacker to king
         //  check which pieces could go onto this square, if they match with the piece we are at right now, we add it
-
-
 
         auto kingCoordinates = Helper::getCoordinates(color ? whiteKing:blackKing);
         auto everyAttacker = getAttackingPieces(kingCoordinates.first, kingCoordinates.second, color, false);
@@ -679,8 +585,6 @@ vector<uint32_t> Board::getAllLegalMoves(bool color) {
         return result;
     }
 
-
-
     for(int i=0; i<8; i++) {
         for(int u=0; u<8; u++) {
             if(board[i][u] && color(board[i][u]) == color) {
@@ -700,6 +604,7 @@ bool Board::inCheck(bool color) {
     return isGuarded(coordinates.first, coordinates.second, color);
 }
 
+// color refers to the color of the piece that is attacked
 vector<pair<int8_t, int8_t>> Board::getAttackingPieces(int8_t x, int8_t y, bool color, bool block) {
     uint64_t attackingKnights = Helper::getPotentialKnightPattern(x,y) & (color ? blackKnight : whiteKnight);
     int numberOfKnights = __builtin_popcountll(attackingKnights);
@@ -723,7 +628,13 @@ vector<pair<int8_t, int8_t>> Board::getAttackingPieces(int8_t x, int8_t y, bool 
         if(color && x == 4) pawnPattern |= Helper::coordinatesToBitmask(x-2,y);
         else if(!color && x == 3) pawnPattern |= Helper::coordinatesToBitmask(x+2,y);
         attackingPawns = pawnPattern & (color ? blackPawn : whitePawn);
+
+        // also check for a pawn that can move 2 squares
+        if(color && x==3 || !color && x==4) {
+            attackingPawns |= (color ? blackPawn : whitePawn) & Helper::coordinatesToBitmask(color ? 1:6, y);
+        }
     }
+
 
     int numberOfPawns = __builtin_popcountll(attackingPawns);
     // get every pawn location
@@ -733,41 +644,6 @@ vector<pair<int8_t, int8_t>> Board::getAttackingPieces(int8_t x, int8_t y, bool 
         result.push_back(tmp);
         attackingPawns &= (~deletion);
     }
-
-    // same for bishop/rook/queen
-    /*
-    // iterate through all possible iterations (farthest piece is at most 7 squares away)
-    // TODO doesn't really work: now every piece that possibly has something in it's way is also added
-    for(int8_t i=1; i<8; i++) {
-        uint64_t attackingBishops = Helper::getPotentialBishopPattern(x,y,i) & (color ? blackBishop : whiteBishop);
-        uint64_t attackingRooks = Helper::getPotentialBishopPattern(x,y,i) & (color ? blackRook : whiteRook);
-        uint64_t attackingQueens = Helper::getPotentialBishopPattern(x,y,i) & (color ? blackQueen : whiteQueen);
-
-        int numberOfBishops = __builtin_popcountll(attackingBishops);
-        for(int u=0; u<numberOfBishops; u++) {
-            auto tmp = Helper::getCoordinates(attackingBishops);
-            auto deletion = Helper::coordinatesToBitmask(tmp.first, tmp.second);
-            result.push_back(tmp);
-            attackingBishops &= (~deletion);
-        }
-
-        int numberOfRooks = __builtin_popcountll(attackingRooks);
-        for(int u=0; u<numberOfRooks; u++) {
-            auto tmp = Helper::getCoordinates(attackingRooks);
-            auto deletion = Helper::coordinatesToBitmask(tmp.first, tmp.second);
-            result.push_back(tmp);
-            attackingRooks &= (~deletion);
-        }
-
-        int numberOfQueens = __builtin_popcountll(attackingQueens);
-        for(int i=0; i<numberOfQueens; i++) {
-            auto tmp = Helper::getCoordinates(attackingQueens);
-            auto deletion = Helper::coordinatesToBitmask(tmp.first, tmp.second);
-            result.push_back(tmp);
-            attackingQueens &= (~deletion);
-        }
-
-    }*/
 
 
     // we know use the findNext method to determine the knights for every other location
@@ -825,7 +701,21 @@ pair<int8_t, int8_t> Board::pinnedPiece(bool color, int8_t x, int8_t y) {
     auto xdif = x - kingCoordinates.first;
     auto ydif = y - kingCoordinates.second;
 
+
     if(abs(xdif) == abs(ydif) || !xdif || !ydif) {
+
+        // we first check if there is some piece inbetween the king and the piece we are checking
+        // if there is we don't need to check the attackers
+        int normalizedX = normalize(xdif);
+        int normalizedY = normalize(ydif);
+
+        int tmpX = x-normalizedX, tmpY = y-normalizedY;
+        while(tmpX != kingCoordinates.first || tmpY != kingCoordinates.second) {
+            if(board[tmpX][tmpY]) return {-1,-1};
+            tmpX -= normalizedX;
+            tmpY -= normalizedY;
+        }
+
 
         auto everyAttacker = getAttackingPieces(x, y, color, false);
         for(auto attacker: everyAttacker) {
@@ -846,7 +736,7 @@ pair<int8_t, int8_t> Board::pinnedPiece(bool color, int8_t x, int8_t y) {
     }
 
 
-    return pair<int8_t, int8_t>(-1,-1);
+    return {-1,-1};
 }
 
 
@@ -860,22 +750,33 @@ int Board::evaluatePosition() {
 
 
 
-pair<uint32_t, int> Board::bestMove(int depth, bool color) {
+pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int beta) {
+    debugInfo++;
     if(depth == 0) {
-        return make_pair(0, evaluatePosition());
+        return make_pair(stack<uint32_t>(), evaluatePosition());
     }
 
 
-    pair<uint32_t, int> result = make_pair(0, color ? INT_MIN:INT_MAX);
+    pair<stack<uint32_t>, int> result = make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX);
     auto tryouts = getAllLegalMoves(color);
+
+
 
     // mate or draw
     if(tryouts.empty()) {
-        if(inCheck(color)) return make_pair(0, color ? INT_MIN:INT_MAX); // mated
-        else return make_pair(0, 0); // stalemate
+        if(inCheck(color)) return make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX); // mated
+        else return make_pair(stack<uint32_t>(), 0); // stalemate
     }
 
-    // TODO contemplate to return instantly if there is only one move
+    // we want to optimize the order of the tryouts to achieve best performance for alpha-beta pruning
+    // we will try to sort depending on if the move beats a piece
+    sort(tryouts.begin(), tryouts.end(), [this](uint32_t a, uint32_t b) {
+        int8_t Ax2 = (a & 0xff00) >> 8;
+        int8_t Ay2 = a & 0xff;
+        int8_t Bx2 = (b & 0xff00) >> 8;
+        int8_t By2 = b & 0xff;
+        return abs(board[Ax2][Ay2]) > abs(board[Bx2][By2]);
+    });
 
 
     for(auto performingMove: tryouts) {
@@ -884,18 +785,32 @@ pair<uint32_t, int> Board::bestMove(int depth, bool color) {
         int8_t x2 = (performingMove & 0xff00) >> 8;
         int8_t y2 = performingMove & 0xff;
 
-
         executeMove(x1, y1, x2, y2);
-        auto thisRes = bestMove(depth-1, !color);
+        auto thisRes = bestMove(depth-1, !color, alpha, beta);
 
-        if(color && thisRes.second >= result.second) {
-            result = make_pair(performingMove, thisRes.second);
+
+        if(color) {
+            // maxEval corresponds to result.second
+            if(thisRes.second > result.second) {
+                result.second = thisRes.second;
+                thisRes.first.push(performingMove);
+                result.first = thisRes.first;
+            }
+            alpha = max(thisRes.second, alpha);
         }
 
         if(!color && thisRes.second <= result.second) {
-            result = make_pair(performingMove, thisRes.second);
+            // minEval corresponds to result.second
+            if(thisRes.second < result.second) {
+                result.second = thisRes.second;
+                thisRes.first.push(performingMove);
+                result.first = thisRes.first;
+            }
+            beta = min(beta, thisRes.second);
         }
         undoLastMove();
+
+        if(beta <= alpha) break;
 
     }
 
@@ -904,81 +819,7 @@ pair<uint32_t, int> Board::bestMove(int depth, bool color) {
 
 }
 
-Board::Board(const Board &rhs) {
-    // Perform a deep copy of the board
-    board = new int8_t*[8];
-    for (int i = 0; i < 8; i++) {
-        board[i] = new int8_t[8];
-        for (int j = 0; j < 8; j++) {
-            board[i][j] = rhs.board[i][j];
-        }
-    }
 
-    // Copy other member variables
-    errorCatcher = rhs.errorCatcher;
-    piecesLeft = rhs.piecesLeft;
-    whitePawn = rhs.whitePawn;
-    whiteKnight = rhs.whiteKnight;
-    whiteBishop = rhs.whiteBishop;
-    whiteRook = rhs.whiteRook;
-    whiteQueen = rhs.whiteQueen;
-    whiteKing = rhs.whiteKing;
-    blackPawn = rhs.blackPawn;
-    blackKnight = rhs.blackKnight;
-    blackBishop = rhs.blackBishop;
-    blackRook = rhs.blackRook;
-    blackQueen = rhs.blackQueen;
-    blackKing = rhs.blackKing;
-    currentMove = rhs.currentMove;
-    lastPawnMoveTime = rhs.lastPawnMoveTime;
-    lastPawnMove = rhs.lastPawnMove;
-    whiteCastles = rhs.whiteCastles;
-    blackCastles = rhs.blackCastles;
-}
-
-Board &Board::operator=(const Board &rhs) {
-    if (this == &rhs) {
-        return *this;
-    }
-
-    // Cleanup existing resources
-    for (int i = 0; i < 8; i++) {
-        delete[] board[i];
-    }
-    delete[] board;
-
-    // Perform a deep copy similar to the copy constructor
-    board = new int8_t*[8];
-    for (int i = 0; i < 8; i++) {
-        board[i] = new int8_t[8];
-        for (int j = 0; j < 8; j++) {
-            board[i][j] = rhs.board[i][j];
-        }
-    }
-
-    // Copy other member variables
-    errorCatcher = rhs.errorCatcher;
-    piecesLeft = rhs.piecesLeft;
-    whitePawn = rhs.whitePawn;
-    whiteKnight = rhs.whiteKnight;
-    whiteBishop = rhs.whiteBishop;
-    whiteRook = rhs.whiteRook;
-    whiteQueen = rhs.whiteQueen;
-    whiteKing = rhs.whiteKing;
-    blackPawn = rhs.blackPawn;
-    blackKnight = rhs.blackKnight;
-    blackBishop = rhs.blackBishop;
-    blackRook = rhs.blackRook;
-    blackQueen = rhs.blackQueen;
-    blackKing = rhs.blackKing;
-    currentMove = rhs.currentMove;
-    lastPawnMoveTime = rhs.lastPawnMoveTime;
-    lastPawnMove = rhs.lastPawnMove;
-    whiteCastles = rhs.whiteCastles;
-    blackCastles = rhs.blackCastles;
-
-    return *this;
-}
 
 void Board::undoLastMove() {
     auto lastMove = lastMoves.top();

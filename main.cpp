@@ -9,6 +9,8 @@ int main() {
 
 
 
+    bool currentColor = true;
+    int counter = 0;
 
     /*auto x = b->getAllLegalMoves(false);
     for(auto performingMove: x) {
@@ -16,27 +18,17 @@ int main() {
         int8_t y1 = (performingMove & 0xff0000) >> 16;
         int8_t x2 = (performingMove & 0xff00) >> 8;
         int8_t y2 = performingMove & 0xff;
-        cout << int(x1) << " " << int(y1) << "  " << int(x2) << " " << int(y2) << endl;
-    }
-    return 1;*/
+        cout << char('a'+y1) << " " <<  int(8-x1) << " " << char('a'+y2) << " " << int(8-x2) << endl;
+    }*/
 
 
 
-    Helper::printBoard(b->board);
-    cout << endl;
 
-
-    bool currentColor = false;
-    int counter = 0;
-
-
-
-    while(counter < 6) {
+    while(true) {
         // let's assume we are only given good moves
 
         // i hate this, just do random piece
         auto moves = b->getAllLegalMoves(currentColor);
-
 
 
         if(moves.empty() || b->piecesLeft <= 2) {
@@ -52,9 +44,9 @@ int main() {
         int index = dist6(rng);
 
         uint32_t performingMove = moves[index];*/
-        if(!currentColor) {
-            auto pair = b->bestMove(5, currentColor);
-            uint32_t performingMove = pair.first;
+        if(true) {
+            auto bestMove = b->bestMove(7, currentColor, INT_MIN, INT_MAX);
+            uint32_t performingMove = bestMove.first.top();
             int8_t x1 = performingMove >> 24;
             int8_t y1 = (performingMove & 0xff0000) >> 16;
             int8_t x2 = (performingMove & 0xff00) >> 8;
@@ -68,10 +60,8 @@ int main() {
         }
 
         Helper::printBoard(b->board);
-        currentColor = !currentColor;
-        //this_thread::sleep_for(chrono::seconds(2));
         cout << endl;
-        //counter++;
+        currentColor = !currentColor;
     }
 
     Helper::printBoard(b->board);

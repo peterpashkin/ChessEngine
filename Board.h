@@ -58,6 +58,7 @@ class Board {
     // it kinda makes sense to use a stack
 
 
+    uint64_t debugInfo = 0;
 
 
     bool whiteCastles;
@@ -76,7 +77,7 @@ class Board {
     bool parseMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2);
     void executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2);
     uint64_t& getBitmaskOfPiece(int8_t piece);
-    bool& getEnPassant(bool color);
+    bool& canCastle(bool color);
     vector<uint32_t> getAllLegalMoves(bool color);
     bool inCheck(bool color);
     vector<pair<int8_t,int8_t>> getAttackingPieces(int8_t x, int8_t y, bool color, bool block);
@@ -89,7 +90,7 @@ class Board {
      */
     int evaluatePosition();
 
-    pair<uint32_t, int> bestMove(int depth, bool color);
+    pair<stack<uint32_t>, int> bestMove(int depth, bool color, int alpha, int beta);
 };
 
 
