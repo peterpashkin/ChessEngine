@@ -24,6 +24,7 @@ int main() {
 
 
 
+
     while(true) {
         // let's assume we are only given good moves
 
@@ -35,17 +36,8 @@ int main() {
             break;
         }
 
-        /* random moves no more
-        random_device dev;
-        mt19937 rng(dev());
-        uniform_int_distribution<std::mt19937::result_type> dist6(0,moves.size()-1);
-
-
-        int index = dist6(rng);
-
-        uint32_t performingMove = moves[index];*/
-        if(true) {
-            auto bestMove = b->bestMove(7, currentColor, INT_MIN, INT_MAX);
+        if(currentColor) {
+            auto bestMove = b->bestMove(6, currentColor, INT_MIN, INT_MAX);
             uint32_t performingMove = bestMove.first.top();
             int8_t x1 = performingMove >> 24;
             int8_t y1 = (performingMove & 0xff0000) >> 16;

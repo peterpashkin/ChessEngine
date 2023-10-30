@@ -91,6 +91,9 @@ class Board {
     int evaluatePosition();
 
     pair<stack<uint32_t>, int> bestMove(int depth, bool color, int alpha, int beta);
+    pair<stack<uint32_t>, int> captureSearch(bool color, int alpha, int beta);
+    uint64_t rateMove(uint32_t move);
+
 };
 
 

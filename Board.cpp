@@ -664,7 +664,6 @@ vector<pair<int8_t, int8_t>> Board::getAttackingPieces(int8_t x, int8_t y, bool 
     pairInDirection = findNext(x, y, step(-1, -1), movingPiece(4), color);
     if (pairInDirection.first != -1) result.push_back(pairInDirection);
 
-
     return result;
 }
 
@@ -701,7 +700,6 @@ pair<int8_t, int8_t> Board::pinnedPiece(bool color, int8_t x, int8_t y) {
     auto xdif = x - kingCoordinates.first;
     auto ydif = y - kingCoordinates.second;
 
-
     if(abs(xdif) == abs(ydif) || !xdif || !ydif) {
 
         // we first check if there is some piece inbetween the king and the piece we are checking
@@ -715,7 +713,6 @@ pair<int8_t, int8_t> Board::pinnedPiece(bool color, int8_t x, int8_t y) {
             tmpX -= normalizedX;
             tmpY -= normalizedY;
         }
-
 
         auto everyAttacker = getAttackingPieces(x, y, color, false);
         for(auto attacker: everyAttacker) {
@@ -735,7 +732,6 @@ pair<int8_t, int8_t> Board::pinnedPiece(bool color, int8_t x, int8_t y) {
         }
     }
 
-
     return {-1,-1};
 }
 
@@ -748,19 +744,40 @@ int Board::evaluatePosition() {
     return whiteWeight - blackWeight;
 }
 
+uint64_t Board::rateMove(uint32_t move) {
+    uint64_t moveScore = 0;
+
+    uint8_t x1 = move >> 24;
+    uint8_t y1 = (move & 0xff0000) >> 16;
+    uint8_t x2 = (move & 0xff00) >> 8;
+    uint8_t y2 = move & 0xff;
+
+    uint8_t myPiece = abs(board[x1][y1]);
+    uint8_t capturingPiece = abs(board[x2][y2]);
+
+    // prioritizes to capture big pieces of the enemy with small pieces of my own
+    if(capturingPiece) {
+        moveScore = 10 * capturingPiece - myPiece;
+    }
+
+    // this is promotion
+    if(myPiece == 1 && (x2 == 0 || x2 == 7)) {
+        moveScore += 9;
+    }
+
+    return moveScore;
+
+}
 
 
 pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int beta) {
     debugInfo++;
     if(depth == 0) {
-        return make_pair(stack<uint32_t>(), evaluatePosition());
+        return captureSearch(color, alpha, beta);
     }
-
 
     pair<stack<uint32_t>, int> result = make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX);
     auto tryouts = getAllLegalMoves(color);
-
-
 
     // mate or draw
     if(tryouts.empty()) {
@@ -771,13 +788,8 @@ pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int
     // we want to optimize the order of the tryouts to achieve best performance for alpha-beta pruning
     // we will try to sort depending on if the move beats a piece
     sort(tryouts.begin(), tryouts.end(), [this](uint32_t a, uint32_t b) {
-        int8_t Ax2 = (a & 0xff00) >> 8;
-        int8_t Ay2 = a & 0xff;
-        int8_t Bx2 = (b & 0xff00) >> 8;
-        int8_t By2 = b & 0xff;
-        return abs(board[Ax2][Ay2]) > abs(board[Bx2][By2]);
+        return rateMove(a) > rateMove(b);
     });
-
 
     for(auto performingMove: tryouts) {
         int8_t x1 = performingMove >> 24;
@@ -817,6 +829,76 @@ pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int
 
     return result;
 
+}
+
+
+pair<stack<uint32_t>, int> Board::captureSearch(bool color, int alpha, int beta) {
+    // this function will be evaluated at the bottom of the bestMove function, it does the same thing but only checks captures until there are no more captures
+    // this will avoid some weird behaviour of the engine where it tries to promote or capture on the last depth move
+    // all the other logic will be pretty much the same
+    debugInfo++;
+
+    int eval = evaluatePosition();
+
+    if(color) {
+        if(eval >= beta) return {stack<uint32_t>(), beta};
+    } else {
+        if(eval <= alpha) return {stack<uint32_t>(), alpha};
+    }
+
+    pair<stack<uint32_t>, int> result = make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX);
+    auto tryouts = getAllLegalMoves(color);
+
+    if(tryouts.empty()) {
+        if(inCheck(color)) return make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX); // mated
+        else return make_pair(stack<uint32_t>(), 0); // stalemate
+    }
+
+
+    int counter = 0;
+    for(auto performingMove: tryouts) {
+
+
+        int8_t x1 = performingMove >> 24;
+        int8_t y1 = (performingMove & 0xff0000) >> 16;
+        int8_t x2 = (performingMove & 0xff00) >> 8;
+        int8_t y2 = performingMove & 0xff;
+
+        if(!board[x2][y2]) continue;
+        counter++;
+
+        executeMove(x1, y1, x2, y2);
+        auto thisRes = captureSearch(!color, alpha, beta);
+
+
+        if(color) {
+            // maxEval corresponds to result.second
+            if(thisRes.second > result.second) {
+                result.second = thisRes.second;
+                thisRes.first.push(performingMove);
+                result.first = thisRes.first;
+            }
+            alpha = max(thisRes.second, alpha);
+        }
+
+        if(!color && thisRes.second <= result.second) {
+            // minEval corresponds to result.second
+            if(thisRes.second < result.second) {
+                result.second = thisRes.second;
+                thisRes.first.push(performingMove);
+                result.first = thisRes.first;
+            }
+            beta = min(beta, thisRes.second);
+        }
+        undoLastMove();
+
+        if(beta <= alpha) break;
+
+    }
+
+    if(counter == 0) return {stack<uint32_t>(), evaluatePosition()};
+
+    return result;
 }
 
 
