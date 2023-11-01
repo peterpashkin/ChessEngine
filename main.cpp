@@ -22,7 +22,7 @@ int main() {
     }*/
 
 
-
+    He
 
 
     while(true) {
@@ -36,7 +36,7 @@ int main() {
             break;
         }
 
-        if(currentColor) {
+        if(!currentColor) {
             auto bestMove = b->bestMove(6, currentColor, INT_MIN, INT_MAX);
             uint32_t performingMove = bestMove.first.top();
             int8_t x1 = performingMove >> 24;

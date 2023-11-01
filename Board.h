@@ -65,8 +65,6 @@ class Board {
     bool blackCastles; // used for en Passant detection (was either piece moved)
 
     Board();
-    Board(const Board& rhs);
-    Board& operator=(const Board& rhs);
     vector<pair<int8_t,int8_t>> legalMoves(int8_t x, int8_t y);
     void fillBishopMoves(uint64_t& result, int8_t x, int8_t y, bool color);
     void fillRookMoves(uint64_t& result, int8_t x, int8_t y, bool color);
