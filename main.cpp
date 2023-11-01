@@ -3,7 +3,7 @@
 #define printPair(x) int(x.first) << " " << int(x.second)
 #define endl "\n"
 
-int main() {
+int no_main() {
     //cout << filesystem::current_path().string() << endl;
     auto b = new Board();
 
@@ -20,9 +20,6 @@ int main() {
         int8_t y2 = performingMove & 0xff;
         cout << char('a'+y1) << " " <<  int(8-x1) << " " << char('a'+y2) << " " << int(8-x2) << endl;
     }*/
-
-
-    He
 
 
     while(true) {

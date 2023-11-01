@@ -400,8 +400,8 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
 
     int8_t piece = board[x1][y1];
     int8_t beatenPiece = board[x2][y2];
-    board[x2][y2] = board[x1][y1];
     board[x1][y1] = 0;
+    board[x2][y2] = piece;
 
 
     move lastMove = {{x1,y1}, {x2,y2}, beatenPiece, false, false, false, whiteCastles, blackCastles};
