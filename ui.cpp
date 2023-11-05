@@ -138,7 +138,7 @@ int main()
         }
     }
 
-    sf::RenderWindow window(sf::VideoMode(458, 468), "Chess AI");
+    sf::RenderWindow window(sf::VideoMode(458, 468), "Chess AI", sf::Style::Titlebar | sf::Style::Close);
     
     // Load the chess board
     sf::Texture chess_board;
