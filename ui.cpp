@@ -261,14 +261,18 @@ int main()
                         //     internal_move(pickup_x_index, pickup_y_index, coord_x, coord_y);
                         // } else {
                         //     chosen_sprite->setPosition(x_before_drag, y_before_drag);
-                        // }  
-                        set_sprite_position(chosen_sprite, nearest_valid_x_center, nearest_valid_y_center);
-                        sprites[std::make_pair(pickup_x_index, pickup_y_index)] = nullptr;
-                        sprites[std::make_pair(coord_x, coord_y)] = chosen_sprite;
-                        std::cout << "Moving from " << pickup_x_index << " " << pickup_y_index << " to " << coord_x << " " << coord_y << "\n";
-                        b.executeMove(pickup_y_index, pickup_x_index, coord_y, coord_x); 
-                        own_move = false;
-                        chosen_sprite = nullptr;              
+                        // }
+                        bool executedMove = b.parseMove(pickup_y_index, pickup_x_index, coord_y, coord_x);
+                        if(executedMove) {
+                            set_sprite_position(chosen_sprite, nearest_valid_x_center, nearest_valid_y_center);
+                            sprites[std::make_pair(pickup_x_index, pickup_y_index)] = nullptr;
+                            sprites[std::make_pair(coord_x, coord_y)] = chosen_sprite;
+                            std::cout << "Moving from " << pickup_x_index << " " << pickup_y_index << " to " << coord_x << " " << coord_y << "\n";
+                            own_move = false;
+                            chosen_sprite = nullptr;
+                        } else {
+                            chosen_sprite->setPosition(x_before_drag, y_before_drag);
+                        }
                     }
                 }
             }
@@ -290,6 +294,8 @@ int main()
         }
         window.display();
     }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
     return 0;
 }

@@ -4,7 +4,7 @@
 
 /* TODO
  * this list has every bug that is currently known
-
+    long castle
  */
 
 #define printPair(x) int(x.first) << " " << int(x.second)
@@ -18,10 +18,16 @@
 #define sameSign(x,y) ((x<0 && y<0) || (x>0 && y>0) || (!x && !y)) // so both negative/positive/zero
 #define endl "\n"
 
-uint64_t whitePromoted = 0xff00'0000'0000'0000;
-uint64_t blackPromoted = 0xff;
+const uint64_t whitePromoted = 0xff00'0000'0000'0000;
+const uint64_t blackPromoted = 0xff;
 
+const uint64_t whiteKingInitial = 0x08;
+const uint64_t whiteShortRookInitial = 0x01;
+const uint64_t whiteLongRookInitial = 0x80;
 
+const uint64_t blackKingInitial = 0x08'00'00'00'00'00'00'00;
+const uint64_t blackShortRookInitial = 0x01'00'00'00'00'00'00'00;
+const uint64_t blackLongRookInitial = 0x80'00'00'00'00'00'00'00;
 
 Board::Board() {
     board = Helper::loadFile();
@@ -34,8 +40,10 @@ Board::Board() {
     // .
     errorCatcher = 0;
     currentMove = 1;
-    blackCastles = true;
-    whiteCastles = true;
+    blackShortCastle = true;
+    whiteShortCastle = true;
+    blackLongCastle = true;
+    whiteLongCastle = true;
     lastPawnMoveTime = -1;
     piecesLeft = 0;
 
@@ -187,7 +195,7 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
             }
 
             // we also check for en passant
-            if(canCastle(color)) {
+            if(canCastleShort(color)) {
                 // so king and rook haven't been moved
                 // with this we can assume that the coordinates of the king are the ones from the start
                 // the only other criteria is therefore space between the two figures
@@ -196,6 +204,12 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
                 if(!board[x][5] && !board[x][6] && !isGuarded(x,5,color) && !isGuarded(x,6,color)) {
                     //result.emplace_back(x, 6); // the rook logic will be implemented in the executeMove
                     possibleMoves |= Helper::coordinatesToBitmask(x, 6);
+                }
+            }
+
+            if(canCastleLong(color)) {
+                if(!board[x][3] && !board[x][2] && !board[x][1] && !isGuarded(x,3,color) && !isGuarded(x,2,color) && !isGuarded(x,1,color)) {
+                    possibleMoves |= Helper::coordinatesToBitmask(x, 2);
                 }
             }
 
@@ -375,14 +389,19 @@ bool Board::isMated(bool color) {
     return getAllLegalMoves(color).empty() && inCheck(color);
 }
 
-// TODO implement this definetely for user input
+
 bool Board::parseMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // honestly not sure why i have this method, i guess for safety reasons currently
     // but i should assume the bot only chooses legal Moves
-    auto moves = legalMoves(x1, y1);
+    if(!board[x1][y1]) {
+        return false;
+    }
 
-    for(auto p: moves) {
-        if(p.first == x2 && p.second == y2) {
+    auto possibleMoves = getAllLegalMoves(color(board[x1][y1]));
+    uint32_t executingMove = (x1 << 24) | (y1 << 16) | (x2 << 8) | y2;
+
+    for(auto p: possibleMoves) {
+        if(p == executingMove) {
             executeMove(x1, y1, x2, y2);
             return true;
         }
@@ -404,7 +423,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     board[x2][y2] = piece;
 
 
-    move lastMove = {{x1,y1}, {x2,y2}, beatenPiece, false, false, false, whiteCastles, blackCastles};
+    move lastMove = {{x1,y1}, {x2,y2}, beatenPiece, false, false, false, whiteShortCastle, blackShortCastle, whiteLongCastle, blackLongCastle};
 
 
     // this is the en passant implementation
@@ -418,11 +437,20 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // this is the castles implementation
     if(abs(piece) == 63 && abs(y2-y1)>1) {
         // the king moves should be done by the following code
-        // this indent is here to move the rook
-        int8_t rookPiece = board[x1][7];
-        Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), x1, 7, x1, 5); // changes bitmask
-        board[x1][5] = rookPiece; // changes board
-        board[x1][7] = 0;
+
+        if(y2 == 6) {
+            int8_t rookPiece = board[x1][7];
+            Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), x1, 7, x1, 5); // changes bitmask
+            board[x1][5] = rookPiece; // changes board
+            board[x1][7] = 0;
+        } else {
+            int8_t rookPiece = board[x1][0];
+            Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), x1, 0, x1, 3);
+            board[x1][3] = rookPiece;
+            board[x1][0] = 0;
+        }
+
+
         lastMove.castle = true;
     }
 
@@ -441,12 +469,10 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // same applies for the king
 
 
-    if((board[0][7] != -6) || (board[0][4] != -63)) {
-        blackCastles = false;
-    }
-
-    if(whiteRook & 1 || whiteKing & 0b0001) whiteCastles = false;
-    // TODO black and check white correct
+    if(!(blackRook & blackShortRookInitial && blackKing & blackKingInitial)) blackShortCastle = false;
+    if(!(whiteRook & whiteShortRookInitial && whiteKing & whiteKingInitial)) whiteShortCastle = false;
+    if(!(blackRook & blackLongRookInitial && blackKing & blackKingInitial)) blackLongCastle = false;
+    if(!(whiteRook & whiteLongRookInitial && whiteKing & whiteKingInitial)) whiteLongCastle = false;
 
     uint64_t whitePawns = whitePawn & whitePromoted;
     uint64_t blackPawns = blackPawn & blackPromoted;
@@ -502,8 +528,12 @@ uint64_t &Board::getBitmaskOfPiece(int8_t piece) {
     }
 }
 
-bool &Board::canCastle(bool color) {
-    return color ? whiteCastles : blackCastles;
+bool &Board::canCastleShort(bool color) {
+    return color ? whiteShortCastle : blackShortCastle;
+}
+
+bool &Board::canCastleLong(bool color) {
+    return color ? whiteLongCastle : blackLongCastle;
 }
 
 vector<uint32_t> Board::getAllLegalMoves(bool color) {
@@ -907,8 +937,7 @@ void Board::undoLastMove() {
     auto lastMove = lastMoves.top();
     lastMoves.pop();
 
-    whiteCastles = lastMove.preWhiteCastle;
-    blackCastles = lastMove.preBlackCastle;
+
     currentMove--;
 
     if(lastMove.castle) {
@@ -917,11 +946,15 @@ void Board::undoLastMove() {
         // we are just going to adjust the rook, the king will be adjusted for us
 
         int currentX = lastMove.to.first;
-        board[currentX][7] = board[currentX][5];
-        board[currentX][5] = 0;
-        Helper::moveBitFromTo(getBitmaskOfPiece(board[currentX][7]), currentX, 5, currentX, 7);
-
-        (currentX ? whiteCastles:blackCastles) = true;
+        if(lastMove.to.second == 6) {
+            board[currentX][7] = board[currentX][5];
+            board[currentX][5] = 0;
+            Helper::moveBitFromTo(getBitmaskOfPiece(board[currentX][7]), currentX, 5, currentX, 7);
+        } else {
+            board[currentX][0] = board[currentX][3];
+            board[currentX][3] = 0;
+            Helper::moveBitFromTo(getBitmaskOfPiece(board[currentX][0]), currentX, 3, currentX, 0);
+        }
 
     } else if(lastMove.enPassant) {
         // if the last move was en Passant, we know we beat the pawn that now stands behind us
@@ -932,6 +965,11 @@ void Board::undoLastMove() {
         getBitmaskOfPiece(beatenPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.to.second);
         piecesLeft++;
     }
+
+    whiteShortCastle = lastMove.preWhiteShortCastle;
+    blackShortCastle = lastMove.preBlackShortCastle;
+    whiteLongCastle = lastMove.preWhiteLongCastle;
+    blackLongCastle = lastMove.preBlackLongCastle;
 
     if(lastMove.promotion) {
         // if we promoted, we cannot reset the pawn normally, so we need to do a complete distinct case analysis

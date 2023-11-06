@@ -51,8 +51,10 @@ class Board {
         bool castle;
         bool enPassant;
         bool promotion;
-        bool preWhiteCastle;
-        bool preBlackCastle;
+        bool preWhiteShortCastle;
+        bool preBlackShortCastle;
+        bool preWhiteLongCastle;
+        bool preBlackLongCastle;
     };
     stack<move> lastMoves;
     // it kinda makes sense to use a stack
@@ -61,8 +63,11 @@ class Board {
     uint64_t debugInfo = 0;
 
 
-    bool whiteCastles;
-    bool blackCastles; // used for en Passant detection (was either piece moved)
+    bool whiteShortCastle;
+    bool blackShortCastle;
+
+    bool whiteLongCastle;
+    bool blackLongCastle;
 
     Board();
     vector<pair<int8_t,int8_t>> legalMoves(int8_t x, int8_t y);
@@ -75,7 +80,8 @@ class Board {
     bool parseMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2);
     void executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2);
     uint64_t& getBitmaskOfPiece(int8_t piece);
-    bool& canCastle(bool color);
+    bool& canCastleShort(bool color);
+    bool& canCastleLong(bool color);
     vector<uint32_t> getAllLegalMoves(bool color);
     bool inCheck(bool color);
     vector<pair<int8_t,int8_t>> getAttackingPieces(int8_t x, int8_t y, bool color, bool block);
