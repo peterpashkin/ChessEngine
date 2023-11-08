@@ -268,7 +268,6 @@ int main()
                             sprites[std::make_pair(pickup_x_index, pickup_y_index)] = nullptr;
                             sprites[std::make_pair(coord_x, coord_y)] = chosen_sprite;
                             std::cout << "Moving from " << char(pickup_x_index + 'a') << " " << (8-pickup_y_index) << " to " << char(coord_x + 'a') << " " << (8-coord_y) << "\n";
-                            std::cout << "Moving from " << pickup_x_index << " " << pickup_y_index << " to " << coord_x << " " << coord_y << "\n";
                             own_move = false;
                             chosen_sprite = nullptr;
                         } else {
