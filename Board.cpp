@@ -811,7 +811,7 @@ pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int
 
     // mate or draw
     if(tryouts.empty()) {
-        if(inCheck(color)) return make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX); // mated
+        if(inCheck(color)) return make_pair(stack<uint32_t>(), color ? -2e9:2e9); // mated, bit adapted values to prioritize moves that lead to mate instead of doing nothing
         else return make_pair(stack<uint32_t>(), 0); // stalemate
     }
 
@@ -876,7 +876,7 @@ pair<stack<uint32_t>, int> Board::captureSearch(bool color, int alpha, int beta)
         if(eval <= alpha) return {stack<uint32_t>(), alpha};
     }
 
-    pair<stack<uint32_t>, int> result = make_pair(stack<uint32_t>(), color ? INT_MIN:INT_MAX);
+    pair<stack<uint32_t>, int> result = make_pair(stack<uint32_t>(), color ? -2e9:2e9);
     auto tryouts = getAllLegalMoves(color);
 
     if(tryouts.empty()) {
