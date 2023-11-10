@@ -39,10 +39,14 @@ class Board {
     uint64_t blackKing{0};
 
     uint64_t currentMove;
-    uint64_t lastPawnMoveTime; // TODO delete those two, and just orient on last move honestly
-    pair<int8_t, int8_t> lastPawnMove; // used for en passant detection
 
 
+    uint64_t pieceSquareHash[12][64];
+    uint64_t blackMovingHash; // obvious
+    uint64_t castlingHashes[4]; // ws wl bs bl
+    uint64_t enPassantHashes[8];
+
+    uint64_t currentHash;
 
     struct move {
         pair<int8_t,int8_t> from;
@@ -69,6 +73,8 @@ class Board {
     bool whiteLongCastle;
     bool blackLongCastle;
 
+
+
     Board();
     vector<pair<int8_t,int8_t>> legalMoves(int8_t x, int8_t y);
     void fillBishopMoves(uint64_t& result, int8_t x, int8_t y, bool color);
@@ -87,6 +93,7 @@ class Board {
     vector<pair<int8_t,int8_t>> getAttackingPieces(int8_t x, int8_t y, bool color, bool block);
     pair<int8_t, int8_t> pinnedPiece(bool color, int8_t x, int8_t y);
     void undoLastMove();
+    uint64_t getHash(int8_t piece, int8_t x, int8_t y);
 
     /**
      * This Function evaluates the current position

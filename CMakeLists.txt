@@ -15,8 +15,7 @@ set(SOURCES
     Board.h
     Helper.cpp
     Helper.h
-    main.cpp
-    ui.cpp
+        main.cpp
 )
 
 # Create an executable from your source files

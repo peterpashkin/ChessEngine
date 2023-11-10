@@ -44,17 +44,30 @@ Board::Board() {
     whiteShortCastle = true;
     blackLongCastle = true;
     whiteLongCastle = true;
-    lastPawnMoveTime = -1;
     piecesLeft = 0;
+
+    std::default_random_engine generator;
+    std::uniform_int_distribution<uint64_t> distribution(100ll,LONG_MAX);
+
+    for(int i=0; i<12; i++) {
+        for(int u=0; u<64; u++) {
+            pieceSquareHash[i][u] = distribution(generator);
+        }
+    }
+
+    blackMovingHash = distribution(generator);
+    for(int i=0; i<4; i++) castlingHashes[i] = distribution(generator);
+    for(int i=0; i<8; i++) enPassantHashes[i] = distribution(generator);
 
     // en passant helper
     move placeholder = {{0,0}, {0,0}, 0, false, false, false, false, false};
     lastMoves.push(placeholder);
 
     long long int currentBit = 1;
-    for (int i = 7; i >= 0; i--) {
-        for (int u = 7; u >= 0; u--) {
+    for (int8_t i = 7; i >= 0; i--) {
+        for (int8_t u = 7; u >= 0; u--) {
             int8_t current = board[i][u];
+            currentHash ^= getHash(current, i, u);
             getBitmaskOfPiece(current) |= currentBit;
             currentBit <<= 1;
             if(current) piecesLeft++;
@@ -423,43 +436,65 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     board[x2][y2] = piece;
 
 
-    move lastMove = {{x1,y1}, {x2,y2}, beatenPiece, false, false, false, whiteShortCastle, blackShortCastle, whiteLongCastle, blackLongCastle};
+    move thisMove = {{x1, y1}, {x2, y2}, beatenPiece, false, false, false, whiteShortCastle, blackShortCastle, whiteLongCastle, blackLongCastle};
+    move previousMove = lastMoves.top();
 
+    // first reset all one move specific things from lastMove, then potentially add them back if they are still active
+    currentHash ^= blackMovingHash; // always
+    if(abs(previousMove.from.first - previousMove.to.first) == 2) {
+        int8_t column = previousMove.from.second;
+        currentHash ^= enPassantHashes[column];
+    }
+
+
+    if(abs(piece) == 1 && abs(x1-x2) == 2) {
+        int8_t column = y1;
+        currentHash ^= enPassantHashes[column];
+    }
 
     // this is the en passant implementation
     if(abs(piece) == 1 && beatenPiece == 0 && abs(y2-y1) == 1) {
+        currentHash ^= getHash(board[x1][y2], x1, y2);
         Helper::removeBitFromCoordinates(getBitmaskOfPiece(board[x1][y2]), x1, y2);
         piecesLeft--;
         board[x1][y2] = 0;
-        lastMove.enPassant = true;
+        thisMove.enPassant = true;
     }
 
     // this is the castles implementation
     if(abs(piece) == 63 && abs(y2-y1)>1) {
-        // the king moves should be done by the following code
+        // the king moves should be done by the other code
 
         if(y2 == 6) {
             int8_t rookPiece = board[x1][7];
+            currentHash ^= getHash(rookPiece, x1, 7);
+            currentHash ^= getHash(rookPiece, x1, 5);
             Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), x1, 7, x1, 5); // changes bitmask
             board[x1][5] = rookPiece; // changes board
             board[x1][7] = 0;
         } else {
             int8_t rookPiece = board[x1][0];
+            currentHash ^= getHash(rookPiece, x1, 0);
+            currentHash ^= getHash(rookPiece, x1, 3);
             Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), x1, 0, x1, 3);
             board[x1][3] = rookPiece;
             board[x1][0] = 0;
         }
 
 
-        lastMove.castle = true;
+        thisMove.castle = true;
     }
 
 
 
     Helper::moveBitFromTo(getBitmaskOfPiece(piece), x1, y1, x2, y2);
+    currentHash ^= getHash(piece, x1, y1);
+    currentHash ^= getHash(piece, x2, y2);
+
     if(beatenPiece) {
         Helper::removeBitFromCoordinates(getBitmaskOfPiece(beatenPiece), x2, y2);
         piecesLeft--;
+        currentHash ^= getHash(beatenPiece, x2, y2);
     }
 
 
@@ -469,10 +504,22 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     // same applies for the king
 
 
-    if(!(blackRook & blackShortRookInitial && blackKing & blackKingInitial)) blackShortCastle = false;
-    if(!(whiteRook & whiteShortRookInitial && whiteKing & whiteKingInitial)) whiteShortCastle = false;
-    if(!(blackRook & blackLongRookInitial && blackKing & blackKingInitial)) blackLongCastle = false;
-    if(!(whiteRook & whiteLongRookInitial && whiteKing & whiteKingInitial)) whiteLongCastle = false;
+    if(!(blackRook & blackShortRookInitial && blackKing & blackKingInitial)) {
+        blackShortCastle = false;
+        currentHash ^= castlingHashes[2];
+    }
+    if(!(whiteRook & whiteShortRookInitial && whiteKing & whiteKingInitial)) {
+        whiteShortCastle = false;
+        currentHash ^= castlingHashes[0];
+    }
+    if(!(blackRook & blackLongRookInitial && blackKing & blackKingInitial)) {
+        blackLongCastle = false;
+        currentHash ^= castlingHashes[3];
+    }
+    if(!(whiteRook & whiteLongRookInitial && whiteKing & whiteKingInitial)) {
+        whiteLongCastle = false;
+        currentHash ^= castlingHashes[1];
+    }
 
     uint64_t whitePawns = whitePawn & whitePromoted;
     uint64_t blackPawns = blackPawn & blackPromoted;
@@ -480,24 +527,26 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     if(whitePawns) {
         pair<int8_t, int8_t> coordinates = Helper::getCoordinates(whitePawns);
         board[coordinates.first][coordinates.second] = 9;
-
+        currentHash ^= getHash(9, coordinates.first, coordinates.second);
+        currentHash ^= getHash(1, coordinates.first, coordinates.second);
         whitePawn &= (~whitePawns);
         whiteQueen |= whitePawns;
-        lastMove.promotion = true;
+        thisMove.promotion = true;
     }
 
     if(blackPawns) {
         pair<int8_t, int8_t> coordinates = Helper::getCoordinates(blackPawns);
         board[coordinates.first][coordinates.second] = -9;
-
+        currentHash ^= getHash(-9, coordinates.first, coordinates.second);
+        currentHash ^= getHash(-1, coordinates.first, coordinates.second);
         blackPawn &= (~blackPawns);
         blackQueen |= blackPawns;
-        lastMove.promotion = true;
+        thisMove.promotion = true;
     }
 
 
     currentMove++;
-    lastMoves.push(lastMove);
+    lastMoves.push(thisMove);
 }
 
 uint64_t &Board::getBitmaskOfPiece(int8_t piece) {
@@ -936,9 +985,14 @@ pair<stack<uint32_t>, int> Board::captureSearch(bool color, int alpha, int beta)
 void Board::undoLastMove() {
     auto lastMove = lastMoves.top();
     lastMoves.pop();
-
-
     currentMove--;
+
+    auto moveBeforeThat = lastMoves.top();
+    currentHash ^= blackMovingHash;
+    if(abs(moveBeforeThat.from.first - moveBeforeThat.to.first) == 2) {
+        int8_t column = moveBeforeThat.from.second;
+        currentHash ^= enPassantHashes[column];
+    }
 
     if(lastMove.castle) {
         // castle moves are represented by either 7 4 -> 7 6 (white)
@@ -947,13 +1001,19 @@ void Board::undoLastMove() {
 
         int currentX = lastMove.to.first;
         if(lastMove.to.second == 6) {
-            board[currentX][7] = board[currentX][5];
+            auto rookPiece = board[currentX][5];
+            board[currentX][7] = rookPiece;
             board[currentX][5] = 0;
-            Helper::moveBitFromTo(getBitmaskOfPiece(board[currentX][7]), currentX, 5, currentX, 7);
+            Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), currentX, 5, currentX, 7);
+            currentHash ^= getHash(rookPiece, currentX, 7);
+            currentHash ^= getHash(rookPiece, currentX, 5);
         } else {
-            board[currentX][0] = board[currentX][3];
+            auto rookPiece = board[currentX][3];
+            board[currentX][0] = rookPiece;
             board[currentX][3] = 0;
-            Helper::moveBitFromTo(getBitmaskOfPiece(board[currentX][0]), currentX, 3, currentX, 0);
+            Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), currentX, 3, currentX, 0);
+            currentHash ^= getHash(rookPiece, currentX, 0);
+            currentHash ^= getHash(rookPiece, currentX, 3);
         }
 
     } else if(lastMove.enPassant) {
@@ -962,14 +1022,29 @@ void Board::undoLastMove() {
         // we can exactly determine the beaten pawn was on: x is same as fromX and y is toY
         int8_t beatenPawn = -board[lastMove.to.first][lastMove.to.second];
         board[lastMove.from.first][lastMove.to.second] = beatenPawn;
+        currentHash ^= getHash(beatenPawn, lastMove.from.first, lastMove.to.second);
         getBitmaskOfPiece(beatenPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.to.second);
         piecesLeft++;
     }
 
-    whiteShortCastle = lastMove.preWhiteShortCastle;
-    blackShortCastle = lastMove.preBlackShortCastle;
-    whiteLongCastle = lastMove.preWhiteLongCastle;
-    blackLongCastle = lastMove.preBlackLongCastle;
+    if(whiteShortCastle != lastMove.preWhiteShortCastle) {
+        currentHash ^= castlingHashes[0];
+        whiteShortCastle = lastMove.preWhiteShortCastle;
+    }
+    if(whiteLongCastle != lastMove.preWhiteLongCastle) {
+        currentHash ^= castlingHashes[1];
+        whiteLongCastle = lastMove.preWhiteLongCastle;
+    }
+    if(blackShortCastle != lastMove.preBlackShortCastle) {
+        currentHash ^= castlingHashes[2];
+        blackShortCastle = lastMove.preBlackShortCastle;
+    }
+    if(blackLongCastle != lastMove.preBlackLongCastle) {
+        currentHash ^= castlingHashes[3];
+        blackLongCastle = lastMove.preBlackLongCastle;
+    }
+
+
 
     if(lastMove.promotion) {
         // if we promoted, we cannot reset the pawn normally, so we need to do a complete distinct case analysis
@@ -979,6 +1054,10 @@ void Board::undoLastMove() {
         board[lastMove.to.first][lastMove.to.second] = lastMove.beatenPiece;
         getBitmaskOfPiece(pastPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.from.second);
         getBitmaskOfPiece(9*pastPawn) &= (~Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second));
+
+        currentHash ^= getHash(pastPawn, lastMove.from.first, lastMove.from.second);
+        currentHash ^= getHash(9*pastPawn, lastMove.to.first, lastMove.to.second);
+        currentHash ^= getHash(lastMove.beatenPiece, lastMove.to.first, lastMove.to.second);
 
         if(lastMove.beatenPiece) piecesLeft++;
         getBitmaskOfPiece(lastMove.beatenPiece) |= Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second);
@@ -992,8 +1071,45 @@ void Board::undoLastMove() {
     board[lastMove.from.first][lastMove.from.second] = movedPiece;
     board[lastMove.to.first][lastMove.to.second] = lastMove.beatenPiece;
 
+    currentHash ^= getHash(movedPiece, lastMove.to.first, lastMove.to.second);
+    currentHash ^= getHash(movedPiece, lastMove.from.first, lastMove.from.second);
+    currentHash ^= getHash(lastMove.beatenPiece, lastMove.to.first, lastMove.to.second);
+
     Helper::moveBitFromTo(getBitmaskOfPiece(movedPiece), lastMove.to.first, lastMove.to.second, lastMove.from.first, lastMove.from.second);
     getBitmaskOfPiece(lastMove.beatenPiece) |= Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second);
 
+}
+
+uint64_t Board::getHash(int8_t piece, int8_t x, int8_t y) {
+    // 0 1 2 ...
+
+    switch(piece) {
+        case 1:
+            return pieceSquareHash[0][8*x + y];
+        case 3:
+            return pieceSquareHash[1][8*x + y];
+        case 4:
+            return pieceSquareHash[2][8*x + y];
+        case 6:
+            return pieceSquareHash[3][8*x + y];
+        case 9:
+            return pieceSquareHash[4][8*x + y];
+        case 63:
+            return pieceSquareHash[5][8*x + y];
+        case -1:
+            return pieceSquareHash[6][8*x + y];
+        case -3:
+            return pieceSquareHash[7][8*x + y];
+        case -4:
+            return pieceSquareHash[8][8*x + y];
+        case -6:
+            return pieceSquareHash[9][8*x + y];
+        case -9:
+            return pieceSquareHash[10][8*x + y];
+        case -63:
+            return pieceSquareHash[11][8*x + y];
+        default:
+            return 0;
+    }
 }
 
