@@ -25,6 +25,8 @@ class Board {
     uint64_t errorCatcher{0};
     int piecesLeft;
 
+    unordered_map<uint64_t, tuple<uint32_t, int64_t, int>> transpositionTable; // map that for each position stores bestMove, evaluation, depthAtEvaluation
+
     uint64_t whitePawn{0};
     uint64_t whiteKnight{0};
     uint64_t whiteBishop{0};
@@ -48,6 +50,7 @@ class Board {
 
     uint64_t currentHash;
 
+    // TODO add add moving Piece to struct and adjust hash in undoLastMove
     struct move {
         pair<int8_t,int8_t> from;
         pair<int8_t,int8_t> to;
@@ -59,6 +62,7 @@ class Board {
         bool preBlackShortCastle;
         bool preWhiteLongCastle;
         bool preBlackLongCastle;
+        uint64_t lastHash;
     };
     stack<move> lastMoves;
     // it kinda makes sense to use a stack

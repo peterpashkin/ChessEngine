@@ -31,6 +31,7 @@ public:
     static vector<pair<int8_t, int8_t>> convertBitMaskToPoints(uint64_t bitmask);
     static uint64_t possiblePinnedMoves(int8_t attackerX, int8_t attackerY, int8_t kingX, int8_t kingY);
     static uint32_t convertMoveToBitmask(int8_t x1, int8_t y1, int8_t x2, int8_t y2);
+    static void printMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2);
 };
 
 

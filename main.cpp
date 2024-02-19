@@ -2,6 +2,7 @@
 #include <iostream>
 #include <utility>
 #include <memory>
+#include <chrono>
 #include "Board.h"
 #include "Helper.h"
 
@@ -124,6 +125,7 @@ int main()
     Board b = Board();
     internal_board = b.board;
 
+
     std::pair<float, float> board_coords[8][8];
     std::vector<float> x_coords_center_field;
     std::vector<float> y_coords_center_field;
@@ -186,7 +188,7 @@ int main()
             int8_t y2 = performingMove & 0xff;
 
             b.executeMove(x1, y1, x2, y2);
-            own_move = true;
+            own_move = !own_move;
             sprites.clear();
 
             setup_board(window, board_coords, sprites, textures);
@@ -259,7 +261,6 @@ int main()
                             sprites[std::make_pair(pickup_x_index, pickup_y_index)] = nullptr;
                             sprites[std::make_pair(coord_x, coord_y)] = chosen_sprite;
                             std::cout << "Moving from " << char(pickup_x_index + 'a') << " " << (8-pickup_y_index) << " to " << char(coord_x + 'a') << " " << (8-coord_y) << "\n";
-                            cout << bitset<64>(b.currentHash) << endl;
                             own_move = false;
                             chosen_sprite = nullptr;
                         } else {
@@ -290,4 +291,5 @@ int main()
     std::this_thread::sleep_for(std::chrono::milliseconds(5000));
 
     return 0;
+    
 }

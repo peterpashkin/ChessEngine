@@ -280,6 +280,10 @@ uint32_t Helper::convertMoveToBitmask(int8_t x1, int8_t y1, int8_t x2, int8_t y2
     return (x1<<24) | (y1 << 16) | (x2 << 8) | y2;
 }
 
+void Helper::printMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
+    cout << char('a' + y1) << " " << int(8-x1) << " " << char('a' + y2) << " " << int(8-x2) << endl;
+}
+
 
 
 

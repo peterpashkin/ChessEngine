@@ -221,7 +221,7 @@ vector<pair<int8_t, int8_t>> Board::legalMoves(int8_t x, int8_t y) {
             }
 
             if(canCastleLong(color)) {
-                if(!board[x][3] && !board[x][2] && !board[x][1] && !isGuarded(x,3,color) && !isGuarded(x,2,color) && !isGuarded(x,1,color)) {
+                if(!board[x][3] && !board[x][2] && !board[x][1] && !isGuarded(x,3,color) && !isGuarded(x,2,color)) {
                     possibleMoves |= Helper::coordinatesToBitmask(x, 2);
                 }
             }
@@ -436,7 +436,7 @@ void Board::executeMove(int8_t x1, int8_t y1, int8_t x2, int8_t y2) {
     board[x2][y2] = piece;
 
 
-    move thisMove = {{x1, y1}, {x2, y2}, beatenPiece, false, false, false, whiteShortCastle, blackShortCastle, whiteLongCastle, blackLongCastle};
+    move thisMove = {{x1, y1}, {x2, y2}, beatenPiece, false, false, false, whiteShortCastle, blackShortCastle, whiteLongCastle, blackLongCastle, currentHash};
     move previousMove = lastMoves.top();
 
     // first reset all one move specific things from lastMove, then potentially add them back if they are still active
@@ -850,7 +850,17 @@ uint64_t Board::rateMove(uint32_t move) {
 
 
 pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int beta) {
-    debugInfo++;
+
+
+    if(transpositionTable.contains(currentHash)) {
+        auto information = transpositionTable[currentHash];
+        if(get<2>(information) >= depth - 1) {
+            stack<uint32_t> returning;
+            returning.push(get<0>(information));
+            return {returning, get<1>(information)};
+        }
+    }
+
     if(depth == 0) {
         return captureSearch(color, alpha, beta);
     }
@@ -877,7 +887,10 @@ pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int
         int8_t y2 = performingMove & 0xff;
 
         executeMove(x1, y1, x2, y2);
+
+
         auto thisRes = bestMove(depth-1, !color, alpha, beta);
+
 
 
         if(color) {
@@ -905,9 +918,12 @@ pair<stack<uint32_t>, int> Board::bestMove(int depth, bool color, int alpha, int
 
     }
 
-
+    tuple<uint32_t, int64_t, int> info;
+    get<0>(info) = result.first.top();
+    get<1>(info) = result.second;
+    get<2>(info) = depth;
+    transpositionTable[currentHash] = info;
     return result;
-
 }
 
 
@@ -986,12 +1002,15 @@ void Board::undoLastMove() {
     auto lastMove = lastMoves.top();
     lastMoves.pop();
     currentMove--;
+    currentHash = lastMove.lastHash;
 
     auto moveBeforeThat = lastMoves.top();
-    currentHash ^= blackMovingHash;
     if(abs(moveBeforeThat.from.first - moveBeforeThat.to.first) == 2) {
         int8_t column = moveBeforeThat.from.second;
-        currentHash ^= enPassantHashes[column];
+    }
+
+    if(abs(lastMove.from.first - lastMove.to.first) == 2) {
+        int8_t column = lastMove.from.second;
     }
 
     if(lastMove.castle) {
@@ -1005,15 +1024,11 @@ void Board::undoLastMove() {
             board[currentX][7] = rookPiece;
             board[currentX][5] = 0;
             Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), currentX, 5, currentX, 7);
-            currentHash ^= getHash(rookPiece, currentX, 7);
-            currentHash ^= getHash(rookPiece, currentX, 5);
         } else {
             auto rookPiece = board[currentX][3];
             board[currentX][0] = rookPiece;
             board[currentX][3] = 0;
             Helper::moveBitFromTo(getBitmaskOfPiece(rookPiece), currentX, 3, currentX, 0);
-            currentHash ^= getHash(rookPiece, currentX, 0);
-            currentHash ^= getHash(rookPiece, currentX, 3);
         }
 
     } else if(lastMove.enPassant) {
@@ -1022,25 +1037,21 @@ void Board::undoLastMove() {
         // we can exactly determine the beaten pawn was on: x is same as fromX and y is toY
         int8_t beatenPawn = -board[lastMove.to.first][lastMove.to.second];
         board[lastMove.from.first][lastMove.to.second] = beatenPawn;
-        currentHash ^= getHash(beatenPawn, lastMove.from.first, lastMove.to.second);
         getBitmaskOfPiece(beatenPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.to.second);
         piecesLeft++;
     }
 
+
     if(whiteShortCastle != lastMove.preWhiteShortCastle) {
-        currentHash ^= castlingHashes[0];
         whiteShortCastle = lastMove.preWhiteShortCastle;
     }
     if(whiteLongCastle != lastMove.preWhiteLongCastle) {
-        currentHash ^= castlingHashes[1];
         whiteLongCastle = lastMove.preWhiteLongCastle;
     }
     if(blackShortCastle != lastMove.preBlackShortCastle) {
-        currentHash ^= castlingHashes[2];
         blackShortCastle = lastMove.preBlackShortCastle;
     }
     if(blackLongCastle != lastMove.preBlackLongCastle) {
-        currentHash ^= castlingHashes[3];
         blackLongCastle = lastMove.preBlackLongCastle;
     }
 
@@ -1055,9 +1066,6 @@ void Board::undoLastMove() {
         getBitmaskOfPiece(pastPawn) |= Helper::coordinatesToBitmask(lastMove.from.first, lastMove.from.second);
         getBitmaskOfPiece(9*pastPawn) &= (~Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second));
 
-        currentHash ^= getHash(pastPawn, lastMove.from.first, lastMove.from.second);
-        currentHash ^= getHash(9*pastPawn, lastMove.to.first, lastMove.to.second);
-        currentHash ^= getHash(lastMove.beatenPiece, lastMove.to.first, lastMove.to.second);
 
         if(lastMove.beatenPiece) piecesLeft++;
         getBitmaskOfPiece(lastMove.beatenPiece) |= Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second);
@@ -1070,10 +1078,6 @@ void Board::undoLastMove() {
     int8_t movedPiece = board[lastMove.to.first][lastMove.to.second];
     board[lastMove.from.first][lastMove.from.second] = movedPiece;
     board[lastMove.to.first][lastMove.to.second] = lastMove.beatenPiece;
-
-    currentHash ^= getHash(movedPiece, lastMove.to.first, lastMove.to.second);
-    currentHash ^= getHash(movedPiece, lastMove.from.first, lastMove.from.second);
-    currentHash ^= getHash(lastMove.beatenPiece, lastMove.to.first, lastMove.to.second);
 
     Helper::moveBitFromTo(getBitmaskOfPiece(movedPiece), lastMove.to.first, lastMove.to.second, lastMove.from.first, lastMove.from.second);
     getBitmaskOfPiece(lastMove.beatenPiece) |= Helper::coordinatesToBitmask(lastMove.to.first, lastMove.to.second);
